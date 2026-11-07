@@ -6,7 +6,6 @@ import {
   isDemoMode,
   submitFeedback,
 } from "./api.js";
-import { demoLessons } from "./mock-data.js";
 import { initTheme } from "./theme.js";
 
 const state = {
@@ -161,8 +160,8 @@ function dashboardHero(records) {
       </div>
       <div class="hero-proof"><span class="proof-mark">↳</span> Not another incident inbox. A response that remembers.</div>
     </div>
-    <div class="hero-visual" aria-label="Illustration of the IncidentIQ demo memory engine connecting previous incidents to a current investigation">
-      <div class="visual-caption"><span>IIQ / MEMORY ENGINE</span><span class="visual-state"><i></i> SAMPLE DATA</span></div>
+    <div class="hero-visual" aria-label="Illustration of the IncidentIQ memory engine connecting previous incidents to a current investigation">
+      <div class="visual-caption"><span>IIQ / MEMORY ENGINE</span><span class="visual-state"><i></i> ${isDemoMode() ? "SAMPLE DATA" : "TEAM MEMORY"}</span></div>
       <svg class="memory-network" viewBox="0 0 620 390" role="img" aria-labelledby="network-title network-description">
         <title id="network-title">IncidentIQ incident memory connections</title>
         <desc id="network-description">A central incident investigation is linked to two previous incidents, one successful and one unsuccessful.</desc>
@@ -183,7 +182,7 @@ function dashboardHero(records) {
       </svg>
       ${connectedMemories.map(({ record, outcome }) => `<button class="visual-memory ${outcome === "Worked" ? "visual-memory-success" : "visual-memory-failed"}" type="button" data-action="detail" data-incident-id="${escapeHTML(record.id)}" aria-haspopup="dialog" aria-label="View details for ${escapeHTML(record.title)}, outcome ${escapeHTML(outcome)}" title="${escapeHTML(memoryTooltip(record, outcome))}"><span class="memory-node-icon" aria-hidden="true">${outcome === "Worked" ? "↗" : "↘"}</span><span><b>${escapeHTML(record.title)}</b><small>${escapeHTML(record.id)} · ${escapeHTML(outcome.toUpperCase())}</small></span><i class="outcome-light" aria-hidden="true"></i></button>`).join("")}
       <div class="visual-core"><span class="core-orbit orbit-one"></span><span class="core-orbit orbit-two"></span><span class="core-mark">◈</span><b>INCIDENT<br>IN CONTEXT</b><small>${connectedMemories.length ? `LINKED TO ${connectedMemories.length} ${connectedMemories.length === 1 ? "MEMORY" : "MEMORIES"}` : "NO HISTORICAL MEMORIES"}</small></div>
-      <div class="visual-current"><span class="current-dot"></span><span><b>CURRENT REPORT</b><small>Demo investigation · offline sample</small></span></div>
+      <div class="visual-current"><span class="current-dot"></span><span><b>CURRENT REPORT</b><small>Submit an incident to begin</small></span></div>
       <div class="visual-index">MEMORY GRAPH / 01—04</div>
     </div>
   </section>`;
@@ -191,19 +190,20 @@ function dashboardHero(records) {
 
 function dashboardContent(insights, records) {
   const counts = insights.counts;
+  const lessons = Array.isArray(insights.lessons) ? insights.lessons : [];
   return `
     <section class="metrics-grid" aria-label="Incident statistics">
-      ${metric("TOTAL INCIDENTS ANALYSED", counts.incidentsAnalysed, "Includes demo history and this session")}
+      ${metric("TOTAL INCIDENTS ANALYSED", counts.incidentsAnalysed, "Records in incident history")}
       ${metric("SUCCESSFUL RESOLUTIONS", counts.successfulResolutions, "Outcomes marked WORKED")}
       ${metric("FAILED RESOLUTIONS", counts.failedResolutions, "Outcomes marked FAILED")}
-      ${metric("REMEMBERED INCIDENTS", counts.rememberedIncidents, "Illustrative historical memories")}
+      ${metric("REMEMBERED INCIDENTS", counts.rememberedIncidents, "Incidents with recorded outcomes")}
     </section>
     <div class="dashboard-grid">
       <section aria-labelledby="recent-heading"><div class="section-heading"><div><h2 id="recent-heading">Recent incidents</h2><p>Historical cases and this session's reports</p></div><button class="text-link" type="button" data-action="navigate" data-page="incident-history">View history →</button></div>
         <div class="panel recent-list">${records.slice(0, 5).map(dashboardIncidentRow).join("") || emptyState("No incidents yet", "New incident reports will appear here.")}</div>
       </section>
-      <section aria-labelledby="lessons-heading"><div class="section-heading"><div><h2 id="lessons-heading">Recent lessons learned</h2><p>Memory that informs the next response</p></div></div>
-        <div class="lesson-list">${demoLessons.slice(0, 3).map((lesson, index) => dashboardLessonCard(lesson, index, records)).join("")}</div>
+      <section aria-labelledby="lessons-heading"><div class="section-heading"><div><h2 id="lessons-heading">Recent lessons learned</h2><p>Guidance returned by the incident service</p></div></div>
+        <div class="lesson-list">${lessons.length ? lessons.slice(0, 3).map(dashboardLessonCard).join("") : emptyState("No lessons available", "The incident service has not returned any lessons yet.")}</div>
       </section>
     </div>
     <section class="quick-action" aria-label="Quick incident report"><div><strong>Something needs attention?</strong><span>Start with the symptoms. Bring previous incident learnings into the response.</span></div><button class="primary-button" type="button" data-action="navigate" data-page="new-incident">＋ New incident</button></section>`;
@@ -222,15 +222,12 @@ function dashboardIncidentRow(record) {
   </button>`;
 }
 
-function dashboardLessonCard(lesson, index, records) {
-  const memoryId = ["DEMO-2041", "DEMO-2038", "DEMO-2031"][index];
-  const memory = records.find((record) => record.id === memoryId);
+function dashboardLessonCard(lesson, index) {
   return `<article class="lesson-card">
     <span class="lesson-icon" aria-hidden="true">◈</span>
     <div class="lesson-content">
-      <div class="lesson-card-topline"><span class="lesson-number">LESSON 0${index + 1}</span>${memory ? outcomeBadge(memory.outcome) : ""}</div>
+      <div class="lesson-card-topline"><span class="lesson-number">LESSON 0${index + 1}</span></div>
       <p class="lesson-text">${escapeHTML(lesson)}</p>
-      ${memory ? `<div class="lesson-cause"><strong>ROOT CAUSE</strong>${escapeHTML(memory.rootCause || "Not recorded")}</div><button class="lesson-source" type="button" data-action="detail" data-incident-id="${escapeHTML(memory.id)}">From ${escapeHTML(memory.id)} · View incident →</button>` : `<span class="lesson-source">DEMO MEMORY · ${escapeHTML(memoryId)}</span>`}
     </div>
   </article>`;
 }
@@ -248,12 +245,14 @@ function newIncidentPage() {
         <div class="field field-full"><label for="incident-logs">Error logs or technical details <span class="field-hint">Optional · redact sensitive data</span></label><textarea class="logs-area" id="incident-logs" name="logs" maxlength="5000" placeholder="Paste a short, redacted error excerpt (optional)"></textarea></div>
       </div>
       <div class="form-error-slot" id="form-error" aria-live="polite"></div>
-      <div class="form-footer"><span class="privacy-note">Analysis uses Hindsight team memory and an LLM. Do not include secrets.</span><button class="primary-button" type="submit" id="analyse-button">◈ &nbsp; Analyse incident</button></div>
+      <div class="form-footer"><span class="privacy-note">Analysis uses Hindsight memory and an LLM. Do not include secrets.</span><button class="primary-button" type="submit" id="analyse-button">◈ &nbsp; Analyse incident</button></div>
     </form>
   </section>${analysis}`;
 }
 
 function renderAnalysis(analysis) {
+  const memories = Array.isArray(analysis.memories) ? analysis.memories : [];
+  const lessons = Array.isArray(analysis.lessons) ? analysis.lessons : [];
   return `<section class="analysis-section" id="analysis-results" aria-labelledby="analysis-heading">
     <div class="analysis-topline"><div class="analysis-heading-copy"><span class="analysis-label">ANALYSIS · ${isDemoMode() ? "DEMO PROVIDER" : "BACKEND PROVIDER"}</span><h2 id="analysis-heading">${escapeHTML(analysis.title)}</h2><p>${escapeHTML(analysis.service)} · ${escapeHTML(analysis.environment)} · ${escapeHTML(analysis.severity)} · ${escapeHTML(analysis.incidentId)}</p></div>${severityBadge(analysis.severity)}</div>
     <div class="analysis-intro">${escapeHTML(analysis.summary)}</div>
@@ -262,8 +261,8 @@ function renderAnalysis(analysis) {
     <section class="memory-section" aria-labelledby="memory-heading">
       <div class="section-heading"><div><h2 id="memory-heading">What the agent remembers</h2><p>Historical evidence connected to this incident—not generic chat context.</p></div></div>
       <div class="memory-intro"><span class="lesson-icon" aria-hidden="true">⌘</span><div><strong>WHY THESE MEMORIES MATTER</strong><p>IncidentIQ compares symptoms, service, and environment to previous incidents, then shows which fixes worked or failed and why those cases are relevant.</p></div></div>
-      ${analysis.memories.length ? `<div class="memory-timeline">${analysis.memories.map(memoryCard).join("")}</div>` : emptyState("No matching historical memory", "The sample memory contains no sufficiently similar incident. Recommendations are marked as having insufficient historical evidence.")}
-      ${analysis.lessons.length ? `<div class="lessons-panel"><h3>Lessons from Previous Incidents</h3><ul>${analysis.lessons.map((lesson) => `<li>${escapeHTML(lesson)}</li>`).join("")}</ul></div>` : ""}
+      ${memories.length ? `<div class="memory-timeline">${memories.map(memoryCard).join("")}</div>` : emptyState("No matching historical memory", isDemoMode() ? "No sufficiently similar incident was found in the demo memory. Recommendations are marked as having insufficient historical evidence." : "No sufficiently similar incident was returned from available team memory. Recommendations are marked as having insufficient historical evidence.")}
+      ${lessons.length ? `<div class="lessons-panel"><h3>Lessons from Previous Incidents</h3><ul>${lessons.map((lesson) => `<li>${escapeHTML(lesson)}</li>`).join("")}</ul></div>` : ""}
     </section>
   </section>`;
 }
@@ -305,7 +304,7 @@ function recommendationCard(analysis, recommendation) {
         <button class="feedback-button feedback-failed ${feedback === "Failed" ? "is-selected" : ""}" type="button" data-action="feedback" data-incident-id="${escapeHTML(analysis.incidentId)}" data-fix-id="${escapeHTML(recommendation.id)}" data-worked="false" aria-pressed="${feedback === "Failed"}" ${feedback ? "disabled" : ""}>${feedback === "Failed" ? feedbackLabel : "× &nbsp; FAILED"}</button>
       </div>
       <span class="feedback-note${feedback ? " feedback-confirmed" : ""}" role="${feedback ? "status" : "note"}">${feedback
-    ? `Outcome recorded: ${escapeHTML(feedback)}. Saved to team memory and used in the next analysis.`
+    ? escapeHTML(recommendation.feedbackMessage || "Outcome confirmed by the service.")
     : "Record the observed outcome after trying this fix."}</span>
     </div>
   </article>`;
@@ -314,7 +313,7 @@ function recommendationCard(analysis, recommendation) {
 function memoryCard(memory) {
   const outcomeClass = memory.outcome === "Worked" ? "memory-worked" : "memory-failed";
   return `<article class="memory-card ${outcomeClass}">
-    <div class="memory-card-header"><h3>${escapeHTML(memory.title)}</h3><span class="demo-chip">DEMO MEMORY</span></div>
+    <div class="memory-card-header"><h3>${escapeHTML(memory.title)}</h3><span class="demo-chip">${memorySourceLabel(memory)}</span></div>
     <div class="memory-meta"><span>${escapeHTML(memory.id)}</span><span>${escapeHTML(memory.service)}</span><span>${escapeHTML(memory.environment)}</span><span>${escapeHTML(memory.severity)}</span></div>
     <div class="memory-outcome-row"><span>RECORDED OUTCOME</span>${outcomeBadge(memory.outcome)}</div>
     <div class="memory-copy">
@@ -324,6 +323,12 @@ function memoryCard(memory) {
     </div>
     <div class="memory-relevance"><strong>Why it is relevant</strong><p>${escapeHTML(memory.relevance || "Related historical context; no specific match explanation was recorded.")}</p></div>
   </article>`;
+}
+
+function memorySourceLabel(memory) {
+  return isDemoMode() || /^DEMO-/i.test(String(memory.id || ""))
+    ? "DEMO MEMORY"
+    : "TEAM MEMORY";
 }
 
 function historyPage() {
@@ -420,20 +425,20 @@ function insightsContent(insights) {
   const counts = insights.counts;
   const maxOutcome = Math.max(counts.successfulResolutions, counts.failedResolutions, 1);
   return `<section class="metrics-grid" aria-label="Memory statistics">
-    ${metric("REMEMBERED INCIDENTS", counts.rememberedIncidents, "Illustrative historical memories")}
+    ${metric("REMEMBERED INCIDENTS", counts.rememberedIncidents, "Incidents with recorded outcomes")}
     ${metric("SUCCESSFUL FIX OUTCOMES", counts.successfulResolutions, "Marked WORKED")}
     ${metric("FAILED FIX OUTCOMES", counts.failedResolutions, "Marked FAILED")}
-    ${metric("INCIDENTS ANALYSED", counts.incidentsAnalysed, "Demo history and this session")}
+    ${metric("INCIDENTS ANALYSED", counts.incidentsAnalysed, "Incident records in this workspace")}
   </section>
   <div class="insights-grid">
-    <section class="insight-panel"><h3>Resolution outcomes</h3><p>Recorded outcome counts in the demo data. No percentages inferred.</p><div class="outcome-chart">
+    <section class="insight-panel"><h3>Resolution outcomes</h3><p>Recorded outcome counts. No percentages inferred.</p><div class="outcome-chart">
       ${chartRow("Worked", counts.successfulResolutions, maxOutcome, false)}${chartRow("Failed", counts.failedResolutions, maxOutcome, true)}
     </div></section>
     <section class="insight-panel"><h3>Common incident types</h3><p>Categories represented in the current incident memory.</p>${patternList(insights.commonIncidentTypes, "No incident categories are available.")}</section>
     <section class="insight-panel"><h3>Frequently successful fixes</h3><p>Historical fixes with a WORKED outcome.</p>${patternList(insights.successfulFixes, "No successful fix outcomes recorded.")}</section>
     <section class="insight-panel"><h3>Recurring failure patterns</h3><p>Fixes or approaches marked FAILED in available incidents.</p>${patternList(insights.failurePatterns, "No failed fix outcomes recorded.")}</section>
   </div>
-  <section class="lessons-panel" style="margin-top:14px"><h3>Lessons from Previous Incidents</h3><ul>${insights.lessons.map((lesson) => `<li>${escapeHTML(lesson)}</li>`).join("")}</ul></section>`;
+  <section class="lessons-panel" style="margin-top:14px"><h3>Lessons from Previous Incidents</h3>${insights.lessons?.length ? `<ul>${insights.lessons.map((lesson) => `<li>${escapeHTML(lesson)}</li>`).join("")}</ul>` : emptyState("", "The incident service has not returned any lessons yet.")}</section>`;
 }
 
 function chartRow(label, count, max, failed) {
@@ -509,7 +514,7 @@ async function handleFormSubmit(event) {
     state.analysis = await analyseIncident(payload);
     renderPage();
     document.querySelector("#analysis-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    toast(isDemoMode() ? "Demo analysis ready. No live AI or Hindsight service was used." : "Analysis completed by the configured service.", "info");
+    toast(isDemoMode() ? "Demo analysis ready; no live AI or Hindsight service was used." : "Analysis received from the backend.", "info");
   } catch (error) {
     state.submitting = false;
     button.disabled = false;
@@ -539,8 +544,11 @@ async function recordFeedback(button) {
     });
     if (!result?.confirmed) throw new Error(result?.message || "The service did not confirm this feedback.");
     recommendation.feedback = worked ? "Worked" : "Failed";
+    recommendation.feedbackMessage = result.message || (result.simulated
+      ? "Feedback was recorded, but Hindsight persistence was not confirmed."
+      : "Outcome confirmed by the service.");
     renderPage();
-    toast(result.simulated ? `${recommendation.feedback} feedback simulated in this browser session only.` : `${recommendation.feedback} feedback confirmed by the service.`, "success");
+    toast(result.message || `${recommendation.feedback} feedback confirmed by the service.`, "success");
   } catch (error) {
     actionButtons.forEach((item) => { item.disabled = false; });
     button.innerHTML = originalLabel;
@@ -567,19 +575,30 @@ async function openIncidentDetail(incidentId) {
     const record = records.find((item) => item.id === incidentId);
     if (!record) throw new Error("This incident could not be found.");
     document.querySelector("#dialog-content").innerHTML = `<div class="dialog-inner">
-      <div class="dialog-header"><div><span class="analysis-label">${record.isDemo ? "DEMO MEMORY" : "INCIDENT RECORD"}</span><h2 id="dialog-title">${escapeHTML(record.title)}</h2><p>${escapeHTML(record.id)} · ${escapeHTML(record.service)} · ${escapeHTML(record.environment)} · ${formatDate(record.createdAt)}</p></div><button class="icon-button" type="button" data-close-dialog aria-label="Close incident details">×</button></div>
+      <div class="dialog-header"><div><span class="analysis-label">${recordSourceLabel(record)}</span><h2 id="dialog-title">${escapeHTML(record.title)}</h2><p>${escapeHTML(record.id)} · ${escapeHTML(record.service)} · ${escapeHTML(record.environment)} · ${formatDate(record.createdAt)}</p></div><button class="icon-button" type="button" data-close-dialog aria-label="Close incident details">×</button></div>
       ${detailSection("Incident description", record.description)}
       ${detailSection("Root cause", record.rootCause || "Not recorded")}
       ${detailSection("Resolution / fix attempted", record.resolution || "No confirmed resolution recorded")}
       ${detailSection("Outcome", record.outcome)}
       ${Object.keys(record.feedback || {}).length ? detailSection("Recommendation feedback", Object.entries(record.feedback).map(([id, outcome]) => `${record.recommendations.find((item) => item.id === id)?.title || id}: ${outcome}`).join(" · ")) : ""}
       <div class="dialog-section"><h3>Context</h3><p>${escapeHTML(record.severity)} severity · ${escapeHTML(record.category)}</p></div>
-      ${record.isDemo ? `<div class="memory-relevance"><strong>Demo record:</strong> This illustrative example is not a live production incident or a Hindsight record.</div>` : ""}
+      ${isDemoRecord(record) ? `<div class="memory-relevance"><strong>Demo record:</strong> This illustrative example is not a live production incident or a Hindsight record.</div>` : ""}
     </div>`;
     dialog.showModal();
   } catch (error) {
     toast(error.message, "error");
   }
+}
+
+function recordSourceLabel(record) {
+  if (isDemoRecord(record)) return "DEMO MEMORY";
+  // The backend marks preloaded team-memory records as isDemo; it does not mean mock data.
+  if (record.isDemo) return "TEAM MEMORY";
+  return "INCIDENT RECORD";
+}
+
+function isDemoRecord(record) {
+  return /^DEMO-/i.test(String(record.id || "")) || Boolean(record.isDemo && isDemoMode());
 }
 
 function detailSection(title, body) {
@@ -591,13 +610,13 @@ async function renderServiceStatus() {
     const status = await getServiceStatus();
     document.querySelector("#backend-status").textContent = status.backendConfigured ? (status.connected ? "Connected" : status.checked ? "Unavailable" : "Configured") : "Not configured";
     document.querySelector("#memory-status").textContent = status.memoryConfigured ? (status.connected ? "Connected" : status.checked ? "Unavailable" : "Configured") : "Not configured";
-    document.querySelector("#connection-note").textContent = status.checked ? (status.connected ? "Connection check succeeded." : "Connection check failed.") : "Connection has not been checked.";
-    document.querySelector("#mode-chip").textContent = status.mode === "demo" ? "DEMO MODE" : "LIVE MODE";
+    document.querySelector("#connection-note").textContent = status.message || (status.checked ? (status.connected ? "Connection check succeeded." : "Connection check failed.") : "Connection has not been checked.");
+    document.querySelector("#mode-chip").textContent = status.mode === "demo" ? "DEMO MODE" : status.mode === "live" ? "LIVE MODE" : "MODE UNKNOWN";
     const dot = document.querySelector(".service-card-title .status-dot");
-    dot.className = `status-dot ${status.checked && status.connected ? "status-dot-live" : "status-dot-neutral"}`;
+    dot.className = `status-dot ${status.mode === "live" && status.checked && status.connected ? "status-dot-live" : "status-dot-neutral"}`;
   } catch (error) {
     document.querySelector("#connection-note").textContent = `Status unavailable: ${error.message}`;
-    document.querySelector("#mode-chip").textContent = isDemoMode() ? "DEMO MODE" : "LIVE MODE · UNKNOWN";
+    document.querySelector("#mode-chip").textContent = isDemoMode() ? "DEMO MODE" : "MODE UNKNOWN";
     document.querySelector("#backend-status").textContent = "Status unavailable";
     document.querySelector("#memory-status").textContent = "Status unavailable";
   }

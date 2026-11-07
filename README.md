@@ -1,27 +1,33 @@
-# IncidentIQ — Hindsight-Powered AI Incident Response Agent
+# IncidentIQ — AI Incident Response Agent
 
-IncidentIQ is an AI incident-response agent designed to help engineering teams troubleshoot production incidents by learning from previous incidents, their root causes, and the outcomes of past resolutions.
+**Turning past incidents into better future responses.**
 
-The goal is to use persistent memory through [Hindsight](https://github.com/vectorize-io/hindsight) to recall relevant incident history, recommend troubleshooting steps, and improve future recommendations using engineer feedback.
+IncidentIQ is an AI-powered incident response agent that helps engineering teams troubleshoot production incidents using historical incident knowledge.
 
-## Project Status
+It uses **Hindsight** for persistent memory and **Groq** for LLM-powered recommendations. The agent recalls relevant past incidents, considers successful and failed resolutions, and uses engineer feedback to improve future troubleshooting recommendations.
 
-**Current implementation:** Traditional HTML, CSS, and JavaScript frontend connected to a FastAPI backend.
+## Key Features
 
-**Current operating mode:** Demo mode.
+- **AI-Powered Incident Analysis:** Analyse incident descriptions, services, environments, severity levels and technical logs.
+- **Persistent Incident Memory:** Use Hindsight to retain and recall historical incident information.
+- **Context-Aware Recommendations:** Generate troubleshooting recommendations using Groq, informed by relevant historical incidents.
+- **Success and Failure Awareness:** Consider previous successful resolutions and failed fixes when recommending actions.
+- **Feedback-Based Learning:** Collect WORKED and FAILED feedback and retain outcomes in Hindsight for use in subsequent incident analysis.
+- **Incident History:** View previously analysed incidents and their outcomes.
+- **Memory Insights:** Explore recurring incident patterns, resolution outcomes and lessons.
+- **Failed-Fix Warnings:** Highlight previously unsuccessful approaches to help engineers avoid repeating them.
+- **Responsive Interface:** Access the application through a responsive web interface with light and dark themes.
 
-The frontend and backend are connected and the API endpoints have been tested. However, the current backend uses sample incident data and in-memory state. Hindsight persistent memory and live Groq-powered AI analysis are not yet configured.
-
-## Tech Stack
+## Technology Stack
 
 | Component | Technology |
 |---|---|
 | Frontend | HTML, CSS, JavaScript |
 | Backend | Python, FastAPI |
-| API communication | REST API, Fetch |
-| AI integration (planned) | Groq |
-| Persistent memory (planned) | Hindsight |
-| Version control | Git and GitHub |
+| LLM | Groq |
+| Persistent Memory | Hindsight |
+| API Communication | REST API, Fetch |
+| Version Control | Git and GitHub |
 
 ## Project Structure
 
@@ -29,7 +35,18 @@ The frontend and backend are connected and the API endpoints have been tested. H
 HackWithBangalore_4.O_project/
 │
 ├── backend/
-│   └── main.py
+│   ├── agent.py
+│   ├── main.py
+│   ├── memory.py
+│   ├── seed_memory.py
+│   └── test_recall.py
+│
+├── data/
+│   └── seed_incidents.json
+│
+├── docs/
+│   ├── demo_script.md
+│   └── video_outline.md
 │
 ├── web/
 │   ├── assets/
@@ -44,21 +61,10 @@ HackWithBangalore_4.O_project/
 │   └── index.html
 │
 ├── .env.example
+├── .gitignore
 ├── requirements.txt
 └── README.md
 ```
-
-## Features
-
-- **Incident Analysis:** Submit incident descriptions, services, environments, severity levels, and optional logs.
-- **Troubleshooting Recommendations:** View suggested fixes, explanations, troubleshooting steps, and available historical evidence.
-- **Incident Memory:** Display related historical incidents and their resolution outcomes.
-- **Engineer Feedback:** Mark recommendations as WORKED or FAILED.
-- **Incident History:** View previously analysed incidents and their outcomes.
-- **Memory Insights:** Explore incident patterns, successful resolutions, failure patterns, and lessons.
-- **Service Status:** View backend connectivity and memory configuration status.
-- **Responsive Interface:** Access the application through a responsive web interface.
-- **Theme Switching:** Toggle between light and dark themes.
 
 ## Getting Started
 
@@ -69,95 +75,116 @@ git clone https://github.com/poojamm18/HackWithBangalore_4.O_project.git
 cd HackWithBangalore_4.O_project
 ```
 
-### 2. Install Python dependencies
+### 2. Install dependencies
 
 ```powershell
 python -m pip install -r requirements.txt
 ```
 
-### 3. Start the FastAPI backend
+### 3. Configure environment variables
 
-From the project root, run:
+Create a `.env` file in the project root using `.env.example` as a reference.
+
+Add the following configuration:
+
+```env
+HINDSIGHT_API_KEY=your_hindsight_api_key
+HINDSIGHT_BANK_ID=incident-demo
+GROQ_API_KEY=your_groq_api_key
+```
+
+Replace the placeholder values with your actual API credentials.
+
+**Important:**
+- Keep API keys private.
+- Never commit `.env` to GitHub.
+- The `.env` file is excluded through `.gitignore`.
+- Use the same Hindsight bank ID that contains the intended incident memories.
+
+### 4. Start the FastAPI backend
+
+From the project root:
 
 ```powershell
 python -m uvicorn backend.main:app --reload --port 8001
 ```
 
-The backend will be available at:
+Backend URL:
 
-- API base URL: http://127.0.0.1:8001
-- Interactive API documentation: http://127.0.0.1:8001/docs
+http://127.0.0.1:8001
 
-### 4. Start the frontend
+Interactive API documentation:
 
-Open a second terminal in the project root and run:
+http://127.0.0.1:8001/docs
+
+### 5. Start the frontend
+
+Open a second terminal in the project root:
 
 ```powershell
 python -m http.server 8000 --directory web
 ```
 
-Open the application in your browser:
+Open the application:
 
 http://127.0.0.1:8000
 
-**Important:** Keep both terminals running while using the application. The frontend communicates with the backend through HTTP requests.
+Keep both servers running while using the application.
+
+No npm installation or frontend build step is required.
+
+## How IncidentIQ Works
+
+The application follows a memory-informed incident response workflow:
+
+1. **Incident Submission:** An engineer submits a production incident with its description, service, environment, severity and optional technical details.
+2. **Memory Retrieval:** IncidentIQ uses Hindsight to recall relevant historical incidents and their recorded outcomes.
+3. **AI Recommendation Generation:** Groq generates troubleshooting recommendations using the current incident and retrieved historical context.
+4. **Evidence-Based Guidance:** Previous successful and failed fixes are considered when generating recommendations. Previously unsuccessful approaches can be highlighted.
+5. **Engineer Feedback:** Engineers indicate whether a recommended fix WORKED or FAILED.
+6. **Memory Retention:** Feedback and incident outcomes are retained in Hindsight.
+7. **Future Recall:** Subsequent incident analysis can retrieve those recorded outcomes to inform future recommendations.
 
 ## Backend API Endpoints
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| POST | `/api/incidents/analyze` | Analyse a new incident |
-| POST | `/api/incidents/{incident_id}/feedback` | Submit feedback on a recommendation |
+| POST | `/api/incidents/analyze` | Analyse an incident |
+| POST | `/api/incidents/{incident_id}/feedback` | Submit recommendation feedback |
 | GET | `/api/incidents` | Retrieve incident history |
 | GET | `/api/insights` | Retrieve incident insights |
-| GET | `/api/services` | Retrieve backend and memory status |
+| GET | `/api/services` | Check service configuration and status |
 
-The API documentation is available through FastAPI Swagger UI at `/docs`.
+Refer to the FastAPI Swagger documentation at `/docs` for the actual request and response schemas.
 
-## Demo Mode and Current Limitations
+## Seed Incident Data
 
-The current implementation runs in demo mode.
+The repository includes `data/seed_incidents.json`, which contains the initial sample incident dataset.
 
-- Incident analysis uses sample data and rule-based recommendations rather than live AI reasoning.
-- Historical incidents and recommendations are based on predefined sample records.
-- Feedback is accepted by the backend, but its state is held in memory.
-- Feedback and newly analysed incidents can remain visible while the backend process is running, but this state is lost when the backend restarts.
-- Hindsight is not yet connected, so incident memories and feedback are not persistently stored.
-- Groq-powered AI analysis is not yet enabled.
-- The application does not perform live production monitoring, automatically detect incidents, or apply fixes to production systems.
+The backend includes `backend/seed_memory.py` for loading incident records into the configured Hindsight memory bank.
 
-The interface displays demo and configuration status to distinguish the current implementation from the planned AI-powered system.
+Run the seed script only when setting up or intentionally resetting the memory bank:
 
-## Planned AI and Persistent Memory Integration
-
-The next stage of development is to integrate Hindsight and Groq to enable the intended learning workflow.
-
-1. **Incident Analysis:** Use an AI model to understand incoming incident descriptions and technical details.
-2. **Memory Retrieval:** Retrieve relevant past incidents and their resolutions using Hindsight.
-3. **Recommendation Generation:** Generate troubleshooting recommendations informed by historical successes and failures.
-4. **Feedback Collection:** Collect engineer feedback on whether recommended fixes worked.
-5. **Memory Retention:** Store incident details, recommendations, and verified outcomes in persistent memory.
-6. **Continuous Improvement:** Use recalled outcomes to improve the relevance and reliability of future recommendations.
-
-## Environment Configuration
-
-The repository includes a `.env.example` file containing the configuration variables intended for future integrations:
-
-```env
-HINDSIGHT_API_KEY=
-HINDSIGHT_BANK_ID=incident-agent
-GROQ_API_KEY=
-MOCK_MODE=true
+```powershell
+python backend/seed_memory.py
 ```
 
-Copy the example file to `.env` when configuring the integrations.
+Avoid running it repeatedly against an already populated bank unless duplicate handling has been verified.
 
-**Never commit API keys or other secrets to GitHub.**
+The project also includes `backend/test_recall.py` for testing memory retrieval.
+
+## Important Limitations
+
+- IncidentIQ provides recommendations to assist engineers; it does not guarantee that a suggested fix will resolve an incident.
+- AI-generated explanations may contain inferences. A recorded failed outcome does not necessarily establish why a fix failed.
+- Engineers should verify recommendations before applying changes to production systems.
+- The application does not automatically monitor production infrastructure, detect incidents in real time, or execute fixes.
+- Never include passwords, API keys, tokens or other secrets in incident descriptions or logs.
 
 ## Team
 
-Built as a collaborative project for **Hack With Bangalore 4.0**.
+Built collaboratively for Hack With Bangalore 4.0.
 
 ---
 
-**IncidentIQ — Turning past incidents into better future responses.**
+**IncidentIQ — Learn from every incident. Make the next response better.**
