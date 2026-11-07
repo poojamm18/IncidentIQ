@@ -1,190 +1,98 @@
-# IncidentIQ — AI Incident Response Agent
+Why Recall Wasn't Enough: Building IncidentIQ with Hindsight
 
-**Turning past incidents into better future responses.**
+The moment that sold me on agent memory was small. I clicked Failed on one recommended fix, ran the same incident again, and a new card appeared: INC-200, the failure I had just reported. The agent had remembered what I told it, and its advice changed because of it.
 
-IncidentIQ is an AI-powered incident response agent that helps engineering teams troubleshoot production incidents using historical incident knowledge.
+Getting there took more than plugging a memory layer into a chatbot. This is what I built, and what recall alone didn't do.
 
-It uses **Hindsight** for persistent memory and **Groq** for LLM-powered recommendations. The agent recalls relevant past incidents, considers successful and failed resolutions, and uses engineer feedback to improve future troubleshooting recommendations.
+The problem: an incident assistant with no memory
 
-## Key Features
+During an outage, engineers often retry steps a teammate already tried months ago. A typical LLM assistant gives generic troubleshooting advice from its training data. It has no idea which fixes worked in your stack, and it can't tell you that the obvious fix was tried before and made things worse.
 
-- **AI-Powered Incident Analysis:** Analyse incident descriptions, services, environments, severity levels and technical logs.
-- **Persistent Incident Memory:** Use Hindsight to retain and recall historical incident information.
-- **Context-Aware Recommendations:** Generate troubleshooting recommendations using Groq, informed by relevant historical incidents.
-- **Success and Failure Awareness:** Consider previous successful resolutions and failed fixes when recommending actions.
-- **Feedback-Based Learning:** Collect WORKED and FAILED feedback and retain outcomes in Hindsight for use in subsequent incident analysis.
-- **Incident History:** View previously analysed incidents and their outcomes.
-- **Memory Insights:** Explore recurring incident patterns, resolution outcomes and lessons.
-- **Failed-Fix Warnings:** Highlight previously unsuccessful approaches to help engineers avoid repeating them.
-- **Responsive Interface:** Access the application through a responsive web interface with light and dark themes.
+IncidentIQ is my attempt at an incident response assistant that remembers. An engineer reports an incident, and the agent recalls similar past incidents, recommends fixes, and shows how those fixes turned out before. Pooja built the web interface and Rohini wrote the simulated incident data that makes the demo realistic. I built the backend that connects Hindsight, an agent memory engine from Vectorize, with the Groq LLM API.
 
-## Technology Stack
+[IMAGE 1: incident history page]
 
-| Component | Technology |
-|---|---|
-| Frontend | HTML, CSS, JavaScript |
-| Backend | Python, FastAPI |
-| LLM | Groq |
-| Persistent Memory | Hindsight |
-| API Communication | REST API, Fetch |
-| Version Control | Git and GitHub |
+How it works: retain, recall, count
 
-## Project Structure
+The backend is a Python FastAPI app. The lifecycle has three parts.
 
-```text
-HackWithBangalore_4.O_project/
-│
-├── backend/
-│   ├── agent.py
-│   ├── main.py
-│   ├── memory.py
-│   ├── seed_memory.py
-│   └── test_recall.py
-│
-├── data/
-│   └── seed_incidents.json
-│
-├── docs/
-│   ├── demo_script.md
-│   └── video_outline.md
-│
-├── web/
-│   ├── assets/
-│   │   └── incidentiq-mark.svg
-│   ├── css/
-│   │   └── style.css
-│   ├── js/
-│   │   ├── api.js
-│   │   ├── app.js
-│   │   ├── mock-data.js
-│   │   └── theme.js
-│   └── index.html
-│
-├── .env.example
-├── .gitignore
-├── requirements.txt
-└── README.md
-```
+Retain. Each past incident (service, symptoms, root cause, fix tried, outcome) is written to Hindsight Cloud as a plain-language note. When an engineer clicks Worked or Failed on a recommendation, that outcome is saved as a new note too.
 
-## Getting Started
+Recall. When a new incident arrives, the backend asks Hindsight what it remembers about similar incidents on that service. Hindsight doesn't hand back database rows. It splits notes into facts, so ten incidents produced about 57 text snippets.
 
-### 1. Clone the repository
+Count. I didn't want to trust a model with arithmetic, so my own code pulls the incident IDs out of the snippets, loads the full records, and counts how many cited fixes worked or failed.
 
-```powershell
-git clone https://github.com/poojamm18/HackWithBangalore_4.O_project.git
-cd HackWithBangalore_4.O_project
-```
+The recalled incidents go to Groq (openai/gpt-oss-120b), which writes up to three recommendations.
 
-### 2. Install dependencies
+A concrete example: the payments timeout
 
-```powershell
-python -m pip install -r requirements.txt
-```
+The demo uses ten simulated incidents. Three matter here, all on a payments service.
 
-### 3. Configure environment variables
+INC-001: raising the database connection pool from 10 to 30, after checking capacity, stopped the timeouts.
 
-Create a `.env` file in the project root using `.env.example` as a reference.
+INC-003: raising the pool again without checking capacity made the database more overloaded, and the timeouts continued. That attempt failed.
 
-Add the following configuration:
+INC-009: optimizing repeated queries and tuning the pool within limits worked.
 
-```env
-HINDSIGHT_API_KEY=your_hindsight_api_key
-HINDSIGHT_BANK_ID=incident-demo
-GROQ_API_KEY=your_groq_api_key
-```
+I report a new incident: checkout requests are timing out when connecting to the database. The agent recommends resizing the pool safely and optimizing heavy queries. It also warns against an unchecked pool increase, citing INC-003 as the reason.
 
-Replace the placeholder values with your actual API credentials.
+[IMAGE 2: recommendation cards with the INC-003 warning]
 
-**Important:**
-- Keep API keys private.
-- Never commit `.env` to GitHub.
-- The `.env` file is excluded through `.gitignore`.
-- Use the same Hindsight bank ID that contains the intended incident memories.
+The feedback loop
 
-### 4. Start the FastAPI backend
+In the demo, I click Failed on the first recommended fix. The outcome is saved to Hindsight. Then I submit the same incident again.
 
-From the project root:
+This time the response cites INC-200, my feedback, as a failed memory, the failure count on the related recommendation goes up, and one fix is built around why the earlier attempts failed.
 
-```powershell
-python -m uvicorn backend.main:app --reload --port 8001
-```
+[IMAGE 3: second analysis showing the INC-200 memory card]
 
-Backend URL:
+Why recall alone wasn't enough
 
-http://127.0.0.1:8001
+My first version only recalled. The second analysis looked almost identical to the first, because Hindsight's top results barely changed. The feedback was saved, but the next answer didn't reflect it, so the loop was invisible.
 
-Interactive API documentation:
+The fix was in my code. Outcomes engineers report on a service are now always added to the evidence for the next analysis, alongside whatever Hindsight returns. Memory retrieval gave the agent history, and the application logic made sure fresh feedback could not be missed.
 
-http://127.0.0.1:8001/docs
+Two snippets from the code
 
-### 5. Start the frontend
+Hindsight returns text, so I extract incident IDs with a regex and keep Hindsight's ranking order:
 
-Open a second terminal in the project root:
+known = {r["id"] for r in records}
+ordered = []
+for text in texts:
+    for found in re.findall(r"INC-\d+", text):
+        if found in known and found not in ordered:
+            ordered.append(found)
 
-```powershell
-python -m http.server 8000 --directory web
-```
+The model never does the counting. After it answers, I discard any incident ID it invented and count outcomes myself:
 
-Open the application:
+ids = [i for i in rec.get("relatedIncidentIds", []) if i in by_id]
+successes = sum(1 for i in ids if by_id[i]["outcome"].lower() == "worked")
+failures = sum(1 for i in ids if by_id[i]["outcome"].lower() == "failed")
 
-http://127.0.0.1:8000
+If the model call fails, the app builds recommendations directly from the recalled incidents, so the page never goes blank.
 
-Keep both servers running while using the application.
+Lessons and dead ends
 
-No npm installation or frontend build step is required.
+Field names broke the integration. The frontend expected camelCase and my first backend used snake_case. I rewrote the backend to match the frontend that already existed.
 
-## How IncidentIQ Works
+The model ignored a failed incident. Even with INC-003 in the evidence, early answers skipped it. Making "cover every failed related incident" a hard rule in the prompt fixed it.
 
-The application follows a memory-informed incident response workflow:
+A note without a date. My first test note had no timestamp, so Hindsight dated it "today", and it appeared in recall results as if it were a fresh incident.
 
-1. **Incident Submission:** An engineer submits a production incident with its description, service, environment, severity and optional technical details.
-2. **Memory Retrieval:** IncidentIQ uses Hindsight to recall relevant historical incidents and their recorded outcomes.
-3. **AI Recommendation Generation:** Groq generates troubleshooting recommendations using the current incident and retrieved historical context.
-4. **Evidence-Based Guidance:** Previous successful and failed fixes are considered when generating recommendations. Previously unsuccessful approaches can be highlighted.
-5. **Engineer Feedback:** Engineers indicate whether a recommended fix WORKED or FAILED.
-6. **Memory Retention:** Feedback and incident outcomes are retained in Hindsight.
-7. **Future Recall:** Subsequent incident analysis can retrieve those recorded outcomes to inform future recommendations.
+Counts are mine, not Hindsight's. The success and failure numbers are tallied by my code from the incidents a recommendation cites. For a fix that blends two earlier ones, the number means both parts worked separately.
 
-## Backend API Endpoints
+Limits
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| POST | `/api/incidents/analyze` | Analyse an incident |
-| POST | `/api/incidents/{incident_id}/feedback` | Submit recommendation feedback |
-| GET | `/api/incidents` | Retrieve incident history |
-| GET | `/api/insights` | Retrieve incident insights |
-| GET | `/api/services` | Check service configuration and status |
+The ten historical incidents are simulated. Service status shows whether the backend is connected, not live production health. Incidents reported while using the app are kept in a local file, while Hindsight holds the outcome notes. There is one shared memory bank and no user accounts. When the model explains why a fix failed, that is its inference from the recorded outcome, not a confirmed root cause.
 
-Refer to the FastAPI Swagger documentation at `/docs` for the actual request and response schemas.
+What I'd do next
 
-## Seed Incident Data
+Add authentication and one memory bank per team. Store root causes that engineers confirm after resolving an incident, so the agent reasons from facts instead of inference. And evaluate whether recommendations actually shorten resolution time, which I haven't measured.
 
-The repository includes `data/seed_incidents.json`, which contains the initial sample incident dataset.
+Conclusion
 
-The backend includes `backend/seed_memory.py` for loading incident records into the configured Hindsight memory bank.
+Memory made the agent useful only once the application treated feedback as first-class evidence. Hindsight handled storing and recalling the history. My code handled counting, validation and making sure a reported failure shows up in the very next answer.
 
-Run the seed script only when setting up or intentionally resetting the memory bank:
+Tagging Code.in: https://code.in/
 
-```powershell
-python backend/seed_memory.py
-```
-
-Avoid running it repeatedly against an already populated bank unless duplicate handling has been verified.
-
-The project also includes `backend/test_recall.py` for testing memory retrieval.
-
-## Important Limitations
-
-- IncidentIQ provides recommendations to assist engineers; it does not guarantee that a suggested fix will resolve an incident.
-- AI-generated explanations may contain inferences. A recorded failed outcome does not necessarily establish why a fix failed.
-- Engineers should verify recommendations before applying changes to production systems.
-- The application does not automatically monitor production infrastructure, detect incidents in real time, or execute fixes.
-- Never include passwords, API keys, tokens or other secrets in incident descriptions or logs.
-
-## Team
-
-Built collaboratively for Hack With Bangalore 4.0.
-
----
-
-**IncidentIQ — Learn from every incident. Make the next response better.**
+Project repository: PASTE-NEW-REPO-LINK-HERE
